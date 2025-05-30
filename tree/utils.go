@@ -4,7 +4,7 @@ import "fmt"
 
 func (tree *BPlusTree) PrettyPrint() {
 	fmt.Println("B+ Tree Structure (Pretty Print):")
-	prettyPrint(tree.root, "", true)
+	prettyPrint(tree.Root, "", true)
 }
 
 func prettyPrint(node Node, prefix string, isTail bool) {
