@@ -10,15 +10,15 @@ This project implements a **B+ Tree** data structure in Go, designed to mimic mu
 
 The B+ Tree is persisted to disk using Go's `gob` encoding, enabling data persistence across program restarts. This project serves as both a learning tool for database indexing concepts and a foundation for building lightweight on-disk key-value stores.
 
-<table align="center" style="border: 2px solid white; border-collapse: collapse;">
+<table align="center" style="border: 2px solid white; border-collapse: collapse; width: 100%;">
     <tr>
-        <td style="border: 2px solid white; padding: 8px; background: #222;">
+        <td style="border: 2px solid white; padding: 8px; background: #222; text-align: center;">
             <img src="assets/image.png" alt="Tree Print" width="700" height="450"><br>
         </td>
     </tr>
     <tr>
-        <td style="border: 2px solid white; padding: 8px; background: #222;">
-            <img src="assets/persist.png" alt="Data Persistence" width="900" height="450"><br>
+        <td style="border: 2px solid white; padding: 8px; background: #222; text-align: center;">
+            <img src="assets/persist.png" alt="Data Persistence" width="1000" height="450"><br>
         </td>
     </tr>
 </table>
