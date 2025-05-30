@@ -2,7 +2,6 @@
 # B+ Tree Database Indexing in Go
 
 ![Go](https://img.shields.io/badge/Language-Go-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
 
 ## Overview
 
