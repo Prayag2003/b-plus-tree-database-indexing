@@ -20,62 +20,12 @@ func NewBPlusTree(order int) *BPlusTree {
 	}
 }
 
+// Insert adds a key-value pair to the tree.
 func (tree *BPlusTree) Insert(key int, value any) error {
-	newRoot := insert(tree.root, key, value, tree.order)
+	newRoot, split := insert(tree.root, key, value, tree.order)
 	tree.root = newRoot
+	_ = split
 	return nil
-}
-
-func insert(node Node, key int, value any, order int) Node {
-	if node.IsLeaf() {
-		leaf := node.(*LeafNode)
-		insertIntoLeaf(leaf, key, value, order)
-
-		if len(leaf.Keys) > order-1 {
-			left, right, promotedKey := splitLeafNode(leaf, order)
-
-			return &InternalNode{
-				Keys:     []int{promotedKey},
-				Children: []Node{left, right},
-			}
-		}
-		return leaf
-	}
-
-	internal := node.(*InternalNode)
-
-	// Find the child to insert into
-	i := sort.SearchInts(internal.Keys, key)
-	if i >= len(internal.Children) {
-		i = len(internal.Children) - 1
-	}
-	child := internal.Children[i]
-
-	newChild := insert(child, key, value, order)
-
-	// If child was split, insert promotedKey and right child into this internal node
-	if newInternal, ok := newChild.(*InternalNode); ok && newInternal != child {
-		promotedKey := newInternal.Keys[0]
-		left := newInternal.Children[0]
-		right := newInternal.Children[1]
-
-		// Insert promotedKey and right child into internal node at index i
-		internal.Keys = append(internal.Keys, 0)
-		copy(internal.Keys[i+1:], internal.Keys[i:])
-		internal.Keys[i] = promotedKey
-
-		internal.Children[i] = left
-		internal.Children = append(internal.Children, nil)
-		copy(internal.Children[i+2:], internal.Children[i+1:])
-		internal.Children[i+1] = right
-
-		// Split internal node if it overflows
-		if len(internal.Keys) > order-1 {
-			return splitInternalNode(internal, order)
-		}
-	}
-
-	return internal
 }
 
 /*
@@ -113,24 +63,68 @@ func insert(node Node, key int, value any, order int) Node {
 	- Next step: split the leaf and promote middle key to parent.
 */
 
-func insertIntoLeaf(leaf *LeafNode, key int, value any, order int) {
-	/*
-		sort.SearchInts() uses binary search.
-		It returns the first index where leaf.Keys[i] >= key
-	*/
+func insert(node Node, key int, value any, order int) (Node, bool) {
+	if node.IsLeaf() {
+		leaf := node.(*LeafNode)
+		insertIntoLeaf(leaf, key, value)
+
+		if len(leaf.Keys) > order-1 {
+			left, right, promotedKey := splitLeafNode(leaf, order)
+			newInternal := &InternalNode{
+				Keys:     []int{promotedKey},
+				Children: []Node{left, right},
+			}
+			return newInternal, true
+		}
+		return leaf, false
+	}
+
+	internal := node.(*InternalNode)
+	i := sort.SearchInts(internal.Keys, key)
+	if i < len(internal.Keys) && key >= internal.Keys[i] {
+		i++
+	}
+
+	child := internal.Children[i]
+	newChild, childSplit := insert(child, key, value, order)
+
+	if !childSplit {
+		internal.Children[i] = newChild
+		return internal, false
+	}
+
+	// Promote from newChild
+	newInternal := newChild.(*InternalNode)
+	promotedKey := newInternal.Keys[0]
+	left := newInternal.Children[0]
+	right := newInternal.Children[1]
+
+	internal.Keys = append(internal.Keys, 0)
+	copy(internal.Keys[i+1:], internal.Keys[i:])
+	internal.Keys[i] = promotedKey
+
+	internal.Children[i] = left
+	internal.Children = append(internal.Children, nil)
+	copy(internal.Children[i+2:], internal.Children[i+1:])
+	internal.Children[i+1] = right
+
+	if len(internal.Keys) > order-1 {
+		return splitInternalNode(internal)
+	}
+	return internal, false
+}
+
+// insertIntoLeaf inserts a key-value pair into a leaf node.
+func insertIntoLeaf(leaf *LeafNode, key int, value any) {
 	i := sort.SearchInts(leaf.Keys, key)
 
-	// If the key already exists at index i, overwrite the existing value.
 	if i < len(leaf.Keys) && leaf.Keys[i] == key {
 		leaf.Values[i] = value
 		return
 	}
 
 	leaf.Keys = append(leaf.Keys, 0)
-
-	// Shift all elements from i onward to the right by 1 position to make space
 	copy(leaf.Keys[i+1:], leaf.Keys[i:])
-
 	leaf.Keys[i] = key
 
 	leaf.Values = append(leaf.Values, nil)
@@ -150,41 +144,62 @@ func insertIntoLeaf(leaf *LeafNode, key int, value any, order int) {
 		5. If there’s no parent (root was a leaf), create a new root internal node.
 */
 
-func splitLeafNode(leaf *LeafNode, order int) (left *LeafNode, right *LeafNode, promotedKey int) {
+// splitLeafNode splits a leaf into two and returns the left and right nodes and promoted key.
+func splitLeafNode(leaf *LeafNode, order int) (*LeafNode, *LeafNode, int) {
 	mid := order / 2
 
-	right = &LeafNode{
-		Keys:   append([]int(nil), leaf.Keys[mid:]...),
-		Values: append([]any(nil), leaf.Values[mid:]...),
+	left := &LeafNode{
+		Keys:   append([]int{}, leaf.Keys[:mid]...),
+		Values: append([]any{}, leaf.Values[:mid]...),
+	}
+	right := &LeafNode{
+		Keys:   append([]int{}, leaf.Keys[mid:]...),
+		Values: append([]any{}, leaf.Values[mid:]...),
 		Next:   leaf.Next,
 	}
+	left.Next = right
 
-	left = &LeafNode{
-		Keys:   append([]int(nil), leaf.Keys[:mid]...),
-		Values: append([]any(nil), leaf.Values[:mid]...),
-		Next:   right,
-	}
-
-	promotedKey = right.Keys[0]
-	return left, right, promotedKey
+	return left, right, right.Keys[0]
 }
 
-func splitInternalNode(node *InternalNode, order int) *InternalNode {
-	mid := order / 2
+// splitInternalNode splits an internal node and promotes a middle key.
+func splitInternalNode(node *InternalNode) (*InternalNode, bool) {
+	mid := len(node.Keys) / 2
 	promotedKey := node.Keys[mid]
 
 	left := &InternalNode{
-		Keys:     append([]int(nil), node.Keys[:mid]...),
-		Children: append([]Node(nil), node.Children[:mid+1]...),
+		Keys:     append([]int{}, node.Keys[:mid]...),
+		Children: append([]Node{}, node.Children[:mid+1]...),
 	}
 
 	right := &InternalNode{
-		Keys:     append([]int(nil), node.Keys[mid+1:]...),
-		Children: append([]Node(nil), node.Children[mid+1:]...),
+		Keys:     append([]int{}, node.Keys[mid+1:]...),
+		Children: append([]Node{}, node.Children[mid+1:]...),
 	}
 
-	return &InternalNode{
+	newRoot := &InternalNode{
 		Keys:     []int{promotedKey},
 		Children: []Node{left, right},
 	}
+	return newRoot, true
+}
+
+// Search finds a value by key.
+func (tree *BPlusTree) Search(key int) (any, bool) {
+	node := tree.root
+	for !node.IsLeaf() {
+		internal := node.(*InternalNode)
+		i := sort.SearchInts(internal.Keys, key)
+		if i < len(internal.Keys) && key >= internal.Keys[i] {
+			i++
+		}
+		node = internal.Children[i]
+	}
+
+	leaf := node.(*LeafNode)
+	i := sort.SearchInts(leaf.Keys, key)
+	if i < len(leaf.Keys) && leaf.Keys[i] == key {
+		return leaf.Values[i], true
+	}
+	return nil, false
 }
