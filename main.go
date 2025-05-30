@@ -21,4 +21,11 @@ func main() {
 	tree.Insert(50, "I")
 
 	fmt.Println("Inserted keys into B+Tree.")
+
+	val, found := tree.Search(35)
+	if found {
+		fmt.Printf("Found key 35 with value: %v\n", val)
+	} else {
+		fmt.Println("Key 35 not found.")
+	}
 }
