@@ -5,8 +5,8 @@ import (
 )
 
 type BPlusTree struct {
-	root  Node
-	order int
+	Root  Node
+	Order int
 }
 
 func NewBPlusTree(order int) *BPlusTree {
@@ -15,15 +15,14 @@ func NewBPlusTree(order int) *BPlusTree {
 	}
 
 	return &BPlusTree{
-		root:  &LeafNode{},
-		order: order,
+		Root:  &LeafNode{},
+		Order: order,
 	}
 }
 
-// Insert adds a key-value pair to the tree.
 func (tree *BPlusTree) Insert(key int, value any) error {
-	newRoot, split := insert(tree.root, key, value, tree.order)
-	tree.root = newRoot
+	newRoot, split := insert(tree.Root, key, value, tree.Order)
+	tree.Root = newRoot
 	_ = split
 	return nil
 }
@@ -114,7 +113,6 @@ func insert(node Node, key int, value any, order int) (Node, bool) {
 	return internal, false
 }
 
-// insertIntoLeaf inserts a key-value pair into a leaf node.
 func insertIntoLeaf(leaf *LeafNode, key int, value any) {
 	i := sort.SearchInts(leaf.Keys, key)
 
@@ -162,7 +160,6 @@ func splitLeafNode(leaf *LeafNode, order int) (*LeafNode, *LeafNode, int) {
 	return left, right, right.Keys[0]
 }
 
-// splitInternalNode splits an internal node and promotes a middle key.
 func splitInternalNode(node *InternalNode) (*InternalNode, bool) {
 	mid := len(node.Keys) / 2
 	promotedKey := node.Keys[mid]
@@ -184,9 +181,8 @@ func splitInternalNode(node *InternalNode) (*InternalNode, bool) {
 	return newRoot, true
 }
 
-// Search finds a value by key.
 func (tree *BPlusTree) Search(key int) (any, bool) {
-	node := tree.root
+	node := tree.Root
 	for !node.IsLeaf() {
 		internal := node.(*InternalNode)
 		i := sort.SearchInts(internal.Keys, key)
@@ -202,4 +198,58 @@ func (tree *BPlusTree) Search(key int) (any, bool) {
 		return leaf.Values[i], true
 	}
 	return nil, false
+}
+
+func (tree *BPlusTree) RangeSearch(start, end int) []any {
+	var results []any
+	node := tree.Root
+
+	for !node.IsLeaf() {
+		internal := node.(*InternalNode)
+		i := sort.SearchInts(internal.Keys, start)
+		if i >= len(internal.Children) {
+			i = len(internal.Children) - 1
+		}
+		node = internal.Children[i]
+	}
+
+	for node != nil {
+		leaf := node.(*LeafNode)
+		for i, key := range leaf.Keys {
+			if key >= start && key <= end {
+				results = append(results, leaf.Values[i])
+			} else if key > end {
+				return results
+			}
+		}
+		node = leaf.Next
+	}
+
+	return results
+}
+
+func (tree *BPlusTree) Delete(key int) {
+	tree.Root = deleteKey(tree.Root, key)
+}
+
+func deleteKey(node Node, key int) Node {
+	if node.IsLeaf() {
+		leaf := node.(*LeafNode)
+		i := sort.SearchInts(leaf.Keys, key)
+		if i < len(leaf.Keys) && leaf.Keys[i] == key {
+			leaf.Keys = append(leaf.Keys[:i], leaf.Keys[i+1:]...)
+			leaf.Values = append(leaf.Values[:i], leaf.Values[i+1:]...)
+		}
+		return leaf
+	}
+
+	internal := node.(*InternalNode)
+	i := sort.SearchInts(internal.Keys, key)
+	if i >= len(internal.Children) {
+		i = len(internal.Children) - 1
+	}
+	child := internal.Children[i]
+	internal.Children[i] = deleteKey(child, key)
+
+	return internal
 }
