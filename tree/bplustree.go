@@ -1,7 +1,6 @@
 package tree
 
 import (
-	"errors"
 	"sort"
 )
 
@@ -22,25 +21,61 @@ func NewBPlusTree(order int) *BPlusTree {
 }
 
 func (tree *BPlusTree) Insert(key int, value any) error {
-	root := tree.root
+	newRoot := insert(tree.root, key, value, tree.order)
+	tree.root = newRoot
+	return nil
+}
 
-	if root.IsLeaf() {
-		leaf := root.(*LeafNode)
-		insertIntoLeaf(leaf, key, value, tree.order)
+func insert(node Node, key int, value any, order int) Node {
+	if node.IsLeaf() {
+		leaf := node.(*LeafNode)
+		insertIntoLeaf(leaf, key, value, order)
 
-		if len(leaf.Keys) > tree.order-1 {
-			left, right, promotedKey := splitLeafNode(leaf, tree.order)
+		if len(leaf.Keys) > order-1 {
+			left, right, promotedKey := splitLeafNode(leaf, order)
 
-			tree.root = &InternalNode{
+			return &InternalNode{
 				Keys:     []int{promotedKey},
 				Children: []Node{left, right},
 			}
 		}
-		return nil
+		return leaf
 	}
 
-	// Later we'll support internal node insertion here
-	return errors.New("internal node insert not implemented yet")
+	internal := node.(*InternalNode)
+
+	// Find the child to insert into
+	i := sort.SearchInts(internal.Keys, key)
+	if i >= len(internal.Children) {
+		i = len(internal.Children) - 1
+	}
+	child := internal.Children[i]
+
+	newChild := insert(child, key, value, order)
+
+	// If child was split, insert promotedKey and right child into this internal node
+	if newInternal, ok := newChild.(*InternalNode); ok && newInternal != child {
+		promotedKey := newInternal.Keys[0]
+		left := newInternal.Children[0]
+		right := newInternal.Children[1]
+
+		// Insert promotedKey and right child into internal node at index i
+		internal.Keys = append(internal.Keys, 0)
+		copy(internal.Keys[i+1:], internal.Keys[i:])
+		internal.Keys[i] = promotedKey
+
+		internal.Children[i] = left
+		internal.Children = append(internal.Children, nil)
+		copy(internal.Children[i+2:], internal.Children[i+1:])
+		internal.Children[i+1] = right
+
+		// Split internal node if it overflows
+		if len(internal.Keys) > order-1 {
+			return splitInternalNode(internal, order)
+		}
+	}
+
+	return internal
 }
 
 /*
@@ -101,7 +136,6 @@ func insertIntoLeaf(leaf *LeafNode, key int, value any, order int) {
 	leaf.Values = append(leaf.Values, nil)
 	copy(leaf.Values[i+1:], leaf.Values[i:])
 	leaf.Values[i] = value
-
 }
 
 /*
@@ -133,4 +167,24 @@ func splitLeafNode(leaf *LeafNode, order int) (left *LeafNode, right *LeafNode, 
 
 	promotedKey = right.Keys[0]
 	return left, right, promotedKey
+}
+
+func splitInternalNode(node *InternalNode, order int) *InternalNode {
+	mid := order / 2
+	promotedKey := node.Keys[mid]
+
+	left := &InternalNode{
+		Keys:     append([]int(nil), node.Keys[:mid]...),
+		Children: append([]Node(nil), node.Children[:mid+1]...),
+	}
+
+	right := &InternalNode{
+		Keys:     append([]int(nil), node.Keys[mid+1:]...),
+		Children: append([]Node(nil), node.Children[mid+1:]...),
+	}
+
+	return &InternalNode{
+		Keys:     []int{promotedKey},
+		Children: []Node{left, right},
+	}
 }
