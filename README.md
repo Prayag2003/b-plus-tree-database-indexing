@@ -23,6 +23,19 @@ The B+ Tree is persisted to disk using Go's `gob` encoding, enabling data persis
     </tr>
 </table>
 
+## How to Use
+
+### Prerequisites
+
+- Go 1.20+ installed
+
+### Clone and Run
+
+```bash
+    git clone https://github.com/Prayag2003/b-plus-tree-database-indexing.git
+    cd b-plus-tree-database-indexing
+    go run main.go
+````
 
 ---
 
@@ -46,20 +59,6 @@ Key properties:
 - Maintains balance automatically during updates.
 
 ---
-
-## How to Use
-
-### Prerequisites
-
-- Go 1.20+ installed
-
-### Clone and Run
-
-```bash
-git clone https://github.com/Prayag2003/b-plus-tree-database-indexing.git
-cd b-plus-tree-database-indexing
-go run main.go
-````
 
 ## Implementation Details
 
